@@ -2,43 +2,45 @@
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.SignalR.Client;
 using TwinsWins.Shared.Models;
-using Microsoft.AspNetCore.Components;
 
 namespace TwinsWins.Client.Store.Lobby;
 
 public class LobbyEffects : IDisposable
 {
     private readonly HttpClient _httpClient;
-    private readonly HubConnection _hubConnection;
+    private HubConnection? _hubConnection;
 
-    public LobbyEffects(HttpClient httpClient, NavigationManager navigationManager)
+    public LobbyEffects(HttpClient httpClient)
     {
         _httpClient = httpClient;
-
-        // Setup SignalR connection
-        _hubConnection = new HubConnectionBuilder()
-            .WithUrl(navigationManager.ToAbsoluteUri("/gamehub"))
-            .WithAutomaticReconnect()
-            .Build();
     }
 
-    public async Task StartSignalRConnection(IDispatcher dispatcher)
+    private async Task StartSignalRConnection(IDispatcher dispatcher)
     {
-        // Listen for new games added to lobby
-        _hubConnection.On<GameLobby>("ReceiveNewGame", (game) =>
-        {
-            dispatcher.Dispatch(new GameAddedToLobbyAction(game));
-        });
-
-        // Listen for games removed from lobby
-        _hubConnection.On<GameLobby>("ReceiveDeleteGame", (game) =>
-        {
-            dispatcher.Dispatch(new GameRemovedFromLobbyAction(game.Id));
-        });
-
-        // Start connection
         try
         {
+            // Get the API base URL from HttpClient
+            var apiBaseUrl = _httpClient.BaseAddress?.ToString().TrimEnd('/') ?? "https://localhost:7103";
+            var hubUrl = $"{apiBaseUrl}/gamehub";
+
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(hubUrl)
+                .WithAutomaticReconnect()
+                .Build();
+
+            // Listen for new games added to lobby
+            _hubConnection.On<GameLobby>("ReceiveNewGame", (game) =>
+            {
+                dispatcher.Dispatch(new GameAddedToLobbyAction(game));
+            });
+
+            // Listen for games removed from lobby
+            _hubConnection.On<GameLobby>("ReceiveDeleteGame", (game) =>
+            {
+                dispatcher.Dispatch(new GameRemovedFromLobbyAction(game.Id));
+            });
+
+            // Start connection
             await _hubConnection.StartAsync();
         }
         catch (Exception ex)

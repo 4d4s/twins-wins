@@ -21,11 +21,6 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1",
         Description = "API for TwinsWins memory matching game with TON blockchain integration"
     });
-
-    // Include XML comments if you add them
-    // var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    // var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    // options.IncludeXmlComments(xmlPath);
 });
 
 // Add SignalR for real-time updates
@@ -38,9 +33,9 @@ builder.Services.AddCors(options =>
     {
         policy
             .WithOrigins(
-                "https://localhost:5001",  // Blazor WASM dev
-                "http://localhost:5000",    // Alternative
-                builder.Configuration["ClientUrl"] ?? "https://localhost:5001"
+                "https://localhost:7236",  // Blazor WASM HTTPS
+                "http://localhost:5151",   // Blazor WASM HTTP
+                builder.Configuration["ClientUrl"] ?? "https://localhost:7236"
             )
             .AllowAnyHeader()
             .AllowAnyMethod()
@@ -65,7 +60,8 @@ builder.Services.AddScoped<IGameService, GameService>();
 builder.Services.AddSingleton<IImageService>(sp =>
 {
     var imageDirectory = builder.Configuration["ImageDirectory"] ?? "wwwroot/images/game";
-    return new ImageService(imageDirectory);
+    var logger = sp.GetService<ILogger<ImageService>>();
+    return new ImageService(imageDirectory, logger);
 });
 builder.Services.AddScoped<ITonWalletService, TonWalletService>();
 
@@ -157,6 +153,6 @@ if (app.Environment.IsDevelopment())
 app.Logger.LogInformation("TwinsWins API starting...");
 app.Logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
 app.Logger.LogInformation("CORS allowed origins: {Origins}",
-    builder.Configuration["ClientUrl"] ?? "https://localhost:5001");
+    builder.Configuration["ClientUrl"] ?? "https://localhost:7236");
 
 app.Run();

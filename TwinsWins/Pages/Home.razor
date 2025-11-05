@@ -1,0 +1,524 @@
+﻿@page "/"
+
+<PageTitle>TwinsWins - AI-Powered Memory Game</PageTitle>
+
+<div class="home-container">
+    <div class="hero-section">
+        <div class="hero-content">
+            <h1 class="hero-title">
+                <span class="gradient-text">TwinsWins</span>
+            </h1>
+            <p class="hero-subtitle">
+                Match AI-Generated Animal Pairs & Win TON
+            </p>
+            <p class="hero-description">
+                Test your memory with unique AI-generated animal images.
+                Play for free or compete for cryptocurrency prizes!
+            </p>
+
+            <div class="cta-buttons">
+                <a href="/game" class="btn btn-primary btn-large">
+                    <span class="btn-icon">🎯</span>
+                    Practice Free
+                </a>
+                <a href="/lobby" class="btn btn-success btn-large">
+                    <span class="btn-icon">💰</span>
+                    Play for TON
+                </a>
+            </div>
+
+            <div class="features-quick">
+                <div class="feature-badge">
+                    <span class="badge-icon">⚡</span>
+                    <span>Fast-paced</span>
+                </div>
+                <div class="feature-badge">
+                    <span class="badge-icon">🎨</span>
+                    <span>AI-Generated</span>
+                </div>
+                <div class="feature-badge">
+                    <span class="badge-icon">🔒</span>
+                    <span>Blockchain Secured</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="how-to-play">
+        <h2>How to Play</h2>
+        <div class="steps-grid">
+            <div class="step-card">
+                <div class="step-number">1</div>
+                <div class="step-icon">🎴</div>
+                <h3>Match Pairs</h3>
+                <p>Find matching AI-generated animal images in the grid</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-number">2</div>
+                <div class="step-icon">⏱️</div>
+                <h3>Beat the Clock</h3>
+                <p>Complete all matches within 60 seconds</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-number">3</div>
+                <div class="step-icon">🏆</div>
+                <h3>Win Prizes</h3>
+                <p>Higher scores earn bigger prizes in competitive mode</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="game-modes">
+        <h2>Game Modes</h2>
+        <div class="modes-grid">
+            <div class="mode-card practice">
+                <div class="mode-icon">🎯</div>
+                <h3>Practice Mode</h3>
+                <p>Play unlimited free games to improve your skills</p>
+                <ul class="mode-features">
+                    <li>✓ No wallet required</li>
+                    <li>✓ Unlimited games</li>
+                    <li>✓ Instant start</li>
+                    <li>✓ Track your best score</li>
+                </ul>
+                <a href="/game" class="mode-btn btn btn-primary">Start Practicing</a>
+            </div>
+
+            <div class="mode-card competitive">
+                <div class="mode-badge">Popular</div>
+                <div class="mode-icon">💰</div>
+                <h3>Competitive Mode</h3>
+                <p>Stake TON and compete against other players</p>
+                <ul class="mode-features">
+                    <li>✓ Stake 0.1 - 100 TON</li>
+                    <li>✓ Winner takes prize pool</li>
+                    <li>✓ Async multiplayer</li>
+                    <li>✓ On-chain verification</li>
+                </ul>
+                <a href="/lobby" class="mode-btn btn btn-success">Browse Lobby</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="features-section">
+        <h2>Why TwinsWins?</h2>
+        <div class="features-grid">
+            <div class="feature-item">
+                <div class="feature-icon">🎨</div>
+                <h4>Unique AI Art</h4>
+                <p>Every game features fresh, AI-generated animal images</p>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-icon">⚡</div>
+                <h4>Fast & Fun</h4>
+                <p>Quick 60-second rounds perfect for any break</p>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-icon">🔒</div>
+                <h4>Blockchain Secured</h4>
+                <p>Scores verified on TON blockchain - no cheating possible</p>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-icon">💰</div>
+                <h4>Win Cryptocurrency</h4>
+                <p>Earn TON by beating other players</p>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-icon">🌍</div>
+                <h4>Global Competition</h4>
+                <p>Play against memory masters from around the world</p>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-icon">📱</div>
+                <h4>Cross-Platform</h4>
+                <p>Works on desktop, mobile, and tablet</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="cta-section">
+        <div class="cta-content">
+            <h2>Ready to Test Your Memory?</h2>
+            <p>Join thousands of players competing for TON prizes</p>
+            <div class="cta-buttons">
+                <a href="/game" class="btn btn-primary btn-large">
+                    Start Free Game
+                </a>
+                <a href="/lobby" class="btn btn-success btn-large">
+                    View Active Games
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Hero Section */
+    .home-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .hero-section {
+        text-align: center;
+        padding: 60px 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px;
+        color: white;
+        margin-bottom: 60px;
+    }
+
+    .hero-title {
+        font-size: 4rem;
+        font-weight: bold;
+        margin-bottom: 20px;
+        animation: fadeInDown 0.8s;
+    }
+
+    .gradient-text {
+        background: linear-gradient(45deg, #fff, #a8edea);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .hero-subtitle {
+        font-size: 1.8rem;
+        margin-bottom: 15px;
+        animation: fadeIn 1s;
+    }
+
+    .hero-description {
+        font-size: 1.2rem;
+        opacity: 0.9;
+        max-width: 600px;
+        margin: 0 auto 40px;
+        animation: fadeIn 1.2s;
+    }
+
+    /* Buttons */
+    .cta-buttons {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 40px;
+    }
+
+    .btn {
+        padding: 15px 40px;
+        font-size: 1.1rem;
+        border-radius: 12px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: none;
+        cursor: pointer;
+    }
+
+    .btn-large {
+        padding: 20px 50px;
+        font-size: 1.3rem;
+    }
+
+    .btn-primary {
+        background: #1b6ec2;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #155a9c;
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(27, 110, 194, 0.3);
+    }
+
+    .btn-success {
+        background: #28a745;
+        color: white;
+    }
+
+    .btn-success:hover {
+        background: #218838;
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+    }
+
+    .btn-icon {
+        font-size: 1.5rem;
+    }
+
+    /* Feature Badges */
+    .features-quick {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .feature-badge {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 10px 20px;
+        border-radius: 25px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        backdrop-filter: blur(10px);
+    }
+
+    .badge-icon {
+        font-size: 1.2rem;
+    }
+
+    /* How to Play */
+    .how-to-play, .game-modes, .features-section {
+        margin-bottom: 60px;
+    }
+
+    h2 {
+        text-align: center;
+        font-size: 2.5rem;
+        margin-bottom: 40px;
+        color: #1b6ec2;
+    }
+
+    .steps-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 30px;
+    }
+
+    .step-card {
+        background: white;
+        padding: 30px;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: transform 0.3s;
+        position: relative;
+    }
+
+    .step-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+    }
+
+    .step-number {
+        position: absolute;
+        top: -15px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
+
+    .step-icon {
+        font-size: 4rem;
+        margin: 20px 0;
+    }
+
+    .step-card h3 {
+        font-size: 1.5rem;
+        margin-bottom: 15px;
+        color: #333;
+    }
+
+    .step-card p {
+        color: #666;
+    }
+
+    /* Game Modes */
+    .modes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 30px;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .mode-card {
+        background: white;
+        padding: 40px;
+        border-radius: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        position: relative;
+        transition: transform 0.3s;
+    }
+
+    .mode-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+    }
+
+    .mode-card.competitive {
+        border: 3px solid #28a745;
+    }
+
+    .mode-badge {
+        position: absolute;
+        top: -15px;
+        right: 20px;
+        background: #28a745;
+        color: white;
+        padding: 5px 15px;
+        border-radius: 15px;
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+
+    .mode-icon {
+        font-size: 4rem;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .mode-card h3 {
+        font-size: 1.8rem;
+        margin-bottom: 15px;
+        color: #333;
+    }
+
+    .mode-card p {
+        color: #666;
+        margin-bottom: 20px;
+    }
+
+    .mode-features {
+        list-style: none;
+        padding: 0;
+        margin: 20px 0;
+    }
+
+    .mode-features li {
+        padding: 8px 0;
+        color: #333;
+    }
+
+    .mode-btn {
+        width: 100%;
+        justify-content: center;
+        margin-top: 20px;
+    }
+
+    /* Features Grid */
+    .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 30px;
+    }
+
+    .feature-item {
+        background: white;
+        padding: 30px;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: transform 0.3s;
+    }
+
+    .feature-item:hover {
+        transform: translateY(-5px);
+    }
+
+    .feature-icon {
+        font-size: 3rem;
+        margin-bottom: 15px;
+    }
+
+    .feature-item h4 {
+        font-size: 1.3rem;
+        margin-bottom: 10px;
+        color: #333;
+    }
+
+    .feature-item p {
+        color: #666;
+        font-size: 0.95rem;
+    }
+
+    /* CTA Section */
+    .cta-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 60px 20px;
+        border-radius: 20px;
+        text-align: center;
+        color: white;
+    }
+
+    .cta-content h2 {
+        color: white;
+        margin-bottom: 15px;
+    }
+
+    .cta-content p {
+        font-size: 1.2rem;
+        margin-bottom: 30px;
+        opacity: 0.9;
+    }
+
+    /* Animations */
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@keyframes fadeInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Responsive */
+    @@media (max-width: 768px) {
+        .hero-title {
+            font-size: 2.5rem;
+        }
+
+        .hero-subtitle {
+            font-size: 1.3rem;
+        }
+
+        .cta-buttons {
+            flex-direction: column;
+        }
+
+        .btn-large {
+            width: 100%;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+        }
+
+        h2 {
+            font-size: 2rem;
+        }
+    }
+</style>

@@ -1,0 +1,377 @@
+@page "/lobby"
+@using Fluxor
+@using Fluxor.Blazor.Web.Components
+@using TwinsWins.Client.Store.Lobby
+@using TwinsWins.Client.Store.Game
+@inherits FluxorComponent
+
+@inject IState<LobbyState> LobbyState
+@inject IDispatcher Dispatcher
+@inject NavigationManager Navigation
+
+<PageTitle>Game Lobby - TwinsWins</PageTitle>
+
+<div class="lobby-container">
+    <div class="lobby-header">
+        <div class="header-content">
+            <h1>🎮 Game Lobby</h1>
+            <p class="header-subtitle">Challenge other players and win TON cryptocurrency!</p>
+        </div>
+        <button class="btn btn-primary btn-create" @onclick="ShowCreateGameModal">
+            <span class="btn-icon">➕</span>
+            Create New Game
+        </button>
+    </div>
+
+    @if (LobbyState.Value.IsLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading available games...</p>
+        </div>
+    }
+    else if (LobbyState.Value.ErrorMessage != null)
+    {
+        <div class="error-container">
+            <div class="error-icon">⚠️</div>
+            <div class="error-message">
+                <h3>Oops! Something went wrong</h3>
+                <p>@LobbyState.Value.ErrorMessage</p>
+                <button class="btn btn-primary" @onclick="RefreshLobby">
+                    Try Again
+                </button>
+            </div>
+        </div>
+    }
+    else if (!LobbyState.Value.AvailableGames.Any())
+    {
+        <div class="empty-lobby">
+            <div class="empty-icon">🎯</div>
+            <h2>No Active Games</h2>
+            <p>Be the first to create a game and challenge other players!</p>
+            <button class="btn btn-primary btn-large" @onclick="ShowCreateGameModal">
+                <span class="btn-icon">➕</span>
+                Create First Game
+            </button>
+            <div class="empty-actions">
+                <a href="/game" class="link-secondary">
+                    Or practice for free →
+                </a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="lobby-stats">
+            <div class="stat-item">
+                <div class="stat-icon">🎮</div>
+                <div class="stat-content">
+                    <div class="stat-value">@LobbyState.Value.AvailableGames.Count</div>
+                    <div class="stat-label">Active Games</div>
+                </div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-icon">💰</div>
+                <div class="stat-content">
+                    <div class="stat-value">@TotalStake.ToString("F2") TON</div>
+                    <div class="stat-label">Total Prize Pool</div>
+                </div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-icon">👥</div>
+                <div class="stat-content">
+                    <div class="stat-value">@LobbyState.Value.AvailableGames.Count</div>
+                    <div class="stat-label">Players Waiting</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="filters-bar">
+            <div class="filter-group">
+                <label>Sort by:</label>
+                <select class="filter-select" @onchange="OnSortChange">
+                    <option value="newest">Newest First</option>
+                    <option value="stake-high">Highest Stake</option>
+                    <option value="stake-low">Lowest Stake</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="games-grid">
+            @foreach (var game in LobbyState.Value.CurrentPageGames)
+            {
+                <div class="game-card @GetGameCardClass(game)" @key="game.Id">
+                    <div class="game-card-header">
+                        <div class="player-info">
+                            <div class="player-avatar">@GetPlayerInitials(game.OwnerUsername)</div>
+                            <div class="player-details">
+                                <div class="player-name">@game.OwnerUsername</div>
+                                <div class="game-time">
+                                    <span class="time-icon">🕐</span>
+                                    @game.TimeAgo
+                                </div>
+                            </div>
+                        </div>
+                        @if (game.Stake >= 1.0m)
+                        {
+                            <div class="high-stakes-badge">🔥 High Stakes</div>
+                        }
+                    </div>
+
+                    <div class="game-card-body">
+                        <div class="stake-display">
+                            <div class="stake-icon">💎</div>
+                            <div class="stake-info">
+                                <div class="stake-label">Entry Stake</div>
+                                <div class="stake-amount">@game.Stake TON</div>
+                            </div>
+                        </div>
+
+                        <div class="prize-display">
+                            <div class="prize-label">Winner Gets:</div>
+                            <div class="prize-amount">@((game.Stake * 2 * 0.95m).ToString("F2")) TON</div>
+                            <div class="prize-note">(95% of pool)</div>
+                        </div>
+
+                        @if (game.OwnerScore.HasValue)
+                        {
+                            <div class="score-display">
+                                <span class="score-icon">🎯</span>
+                                <span class="score-label">Owner's Score:</span>
+                                <span class="score-value">@game.OwnerScore.Value</span>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="game-card-footer">
+                        <button class="btn btn-success btn-join" @onclick="@(() => ShowJoinGameModal(game))">
+                            <span class="btn-icon">⚔️</span>
+                            Challenge for @game.Stake TON
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (LobbyState.Value.TotalPages > 1)
+        {
+            <div class="pagination">
+                <button class="btn btn-secondary pagination-btn" 
+                        @onclick="PreviousPage"
+                        disabled="@(LobbyState.Value.CurrentPage == 1)">
+                    ← Previous
+                </button>
+                <div class="page-info">
+                    <span class="current-page">@LobbyState.Value.CurrentPage</span>
+                    <span class="page-separator">/</span>
+                    <span class="total-pages">@LobbyState.Value.TotalPages</span>
+                </div>
+                <button class="btn btn-secondary pagination-btn" 
+                        @onclick="NextPage"
+                        disabled="@(LobbyState.Value.CurrentPage == LobbyState.Value.TotalPages)">
+                    Next →
+                </button>
+            </div>
+        }
+    }
+
+    <!-- Create Game Modal -->
+    @if (showCreateModal)
+    {
+        <div class="modal-overlay" @onclick="HideCreateGameModal">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>Create New Game</h2>
+                    <button class="modal-close" @onclick="HideCreateGameModal">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Stake Amount (TON)</label>
+                        <input type="number" 
+                               class="form-input" 
+                               @bind="newGameStake" 
+                               min="0.1" 
+                               max="100" 
+                               step="0.1"
+                               placeholder="Enter stake amount" />
+                        <div class="input-hint">Minimum: 0.1 TON | Maximum: 100 TON</div>
+                    </div>
+
+                    <div class="prize-preview">
+                        <div class="preview-label">Winner will receive:</div>
+                        <div class="preview-amount">@((newGameStake * 2 * 0.95m).ToString("F2")) TON</div>
+                        <div class="preview-note">After 5% platform fee</div>
+                    </div>
+
+                    <div class="wallet-requirement">
+                        <div class="requirement-icon">🔐</div>
+                        <div class="requirement-text">
+                            <strong>TON Wallet Required</strong>
+                            <p>Connect your wallet to stake and create a game</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="HideCreateGameModal">
+                        Cancel
+                    </button>
+                    <button class="btn btn-primary" @onclick="CreateGame" disabled="@(newGameStake < 0.1m)">
+                        <span class="btn-icon">💰</span>
+                        Stake @newGameStake TON & Create
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Join Game Modal -->
+    @if (showJoinModal && selectedGame != null)
+    {
+        <div class="modal-overlay" @onclick="HideJoinGameModal">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>Challenge @selectedGame.OwnerUsername</h2>
+                    <button class="modal-close" @onclick="HideJoinGameModal">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="challenge-info">
+                        <div class="info-row">
+                            <span class="info-label">Opponent:</span>
+                            <span class="info-value">@selectedGame.OwnerUsername</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Your Stake:</span>
+                            <span class="info-value">@selectedGame.Stake TON</span>
+                        </div>
+                        @if (selectedGame.OwnerScore.HasValue)
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Score to Beat:</span>
+                                <span class="info-value">@selectedGame.OwnerScore.Value points</span>
+                            </div>
+                        }
+                        <div class="info-row highlight">
+                            <span class="info-label">Winner Gets:</span>
+                            <span class="info-value">@((selectedGame.Stake * 2 * 0.95m).ToString("F2")) TON</span>
+                        </div>
+                    </div>
+
+                    <div class="wallet-requirement">
+                        <div class="requirement-icon">💰</div>
+                        <div class="requirement-text">
+                            <strong>Payment Required</strong>
+                            <p>@selectedGame.Stake TON will be deducted from your wallet</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="HideJoinGameModal">
+                        Cancel
+                    </button>
+                    <button class="btn btn-success" @onclick="JoinGame">
+                        <span class="btn-icon">⚔️</span>
+                        Accept Challenge
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool showCreateModal = false;
+    private bool showJoinModal = false;
+    private decimal newGameStake = 0.5m;
+    private TwinsWins.Shared.Models.GameLobby? selectedGame = null;
+
+    private decimal TotalStake => LobbyState.Value.AvailableGames.Sum(g => g.Stake);
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Dispatcher.Dispatch(new LoadLobbyGamesAction());
+    }
+
+    private void ShowCreateGameModal()
+    {
+        showCreateModal = true;
+        newGameStake = 0.5m;
+    }
+
+    private void HideCreateGameModal()
+    {
+        showCreateModal = false;
+    }
+
+    private void ShowJoinGameModal(TwinsWins.Shared.Models.GameLobby game)
+    {
+        selectedGame = game;
+        showJoinModal = true;
+    }
+
+    private void HideJoinGameModal()
+    {
+        showJoinModal = false;
+        selectedGame = null;
+    }
+
+    private void CreateGame()
+    {
+        // TODO: Get actual wallet address from TON Connect
+        var walletAddress = "test-wallet";
+        
+        Dispatcher.Dispatch(new InitPaidGameAction(walletAddress, newGameStake));
+        HideCreateGameModal();
+        Navigation.NavigateTo("/game");
+    }
+
+    private void JoinGame()
+    {
+        if (selectedGame == null) return;
+
+        // TODO: Get actual wallet address from TON Connect
+        var walletAddress = "test-wallet";
+        
+        Dispatcher.Dispatch(new JoinPaidGameAction(selectedGame.Id, walletAddress));
+        HideJoinGameModal();
+        Navigation.NavigateTo("/game");
+    }
+
+    private void RefreshLobby()
+    {
+        Dispatcher.Dispatch(new LoadLobbyGamesAction());
+    }
+
+    private void PreviousPage()
+    {
+        Dispatcher.Dispatch(new GoToPreviousPageAction());
+    }
+
+    private void NextPage()
+    {
+        Dispatcher.Dispatch(new GoToNextPageAction());
+    }
+
+    private void OnSortChange(ChangeEventArgs e)
+    {
+        // TODO: Implement sorting
+        var sortType = e.Value?.ToString();
+    }
+
+    private string GetGameCardClass(TwinsWins.Shared.Models.GameLobby game)
+    {
+        return game.Stake >= 1.0m ? "high-stakes" : "";
+    }
+
+    private string GetPlayerInitials(string username)
+    {
+        if (string.IsNullOrEmpty(username)) return "??";
+        
+        var parts = username.Split('_', ' ');
+        if (parts.Length >= 2)
+        {
+            return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        }
+        return username.Length >= 2 ? username.Substring(0, 2).ToUpper() : username.ToUpper();
+    }
+}

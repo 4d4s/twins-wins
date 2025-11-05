@@ -1,0 +1,395 @@
+@page "/game"
+@using Fluxor
+@using Fluxor.Blazor.Web.Components
+@using TwinsWins.Client.Store.Game
+@using TwinsWins.Shared.Models
+@inherits FluxorComponent
+
+@inject IState<GameState> GameState
+@inject IDispatcher Dispatcher
+@inject NavigationManager Navigation
+
+<PageTitle>TwinsWins - Memory Game</PageTitle>
+
+<div class="game-page">
+    @if (!GameState.Value.IsGameActive && !GameState.Value.IsCountdownActive && !GameState.Value.Cells.Any())
+    {
+        <!-- Welcome Screen -->
+        <div class="game-welcome">
+            <div class="welcome-card">
+                <div class="welcome-icon">🎮</div>
+                <h1 class="welcome-title">Memory Match Challenge</h1>
+                <p class="welcome-text">
+                    Match 9 pairs of AI-generated animal images as fast as you can!
+                </p>
+                
+                <div class="rules-box">
+                    <h3>How to Play:</h3>
+                    <ul class="rules-list">
+                        <li>
+                            <span class="rule-icon">🎴</span>
+                            <span>Click cards to reveal AI-generated animal images</span>
+                        </li>
+                        <li>
+                            <span class="rule-icon">🔍</span>
+                            <span>Find matching pairs (raw & stylized versions)</span>
+                        </li>
+                        <li>
+                            <span class="rule-icon">⏱️</span>
+                            <span>Complete all 9 pairs within 60 seconds</span>
+                        </li>
+                        <li>
+                            <span class="rule-icon">🏆</span>
+                            <span>Faster matches = Higher score!</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <button class="btn btn-primary btn-start" @onclick="StartGame">
+                    <span class="btn-icon">🎯</span>
+                    Start Game
+                </button>
+
+                <div class="welcome-footer">
+                    <a href="/" class="link-secondary">← Back to Home</a>
+                    <a href="/lobby" class="link-primary">Play for TON →</a>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="game-container">
+            <!-- Countdown Overlay -->
+            @if (GameState.Value.IsCountdownActive)
+            {
+                <div class="countdown-overlay">
+                    <div class="countdown-content">
+                        <div class="countdown-number">@GameState.Value.CountdownValue</div>
+                        <div class="countdown-text">Get Ready!</div>
+                        <div class="countdown-subtitle">Memorize the positions...</div>
+                        <div class="countdown-progress">
+                            <div class="progress-bar" style="width: @((4 - GameState.Value.CountdownValue) * 33)%"></div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Error Message -->
+            @if (GameState.Value.ErrorMessage != null)
+            {
+                <div class="alert alert-danger">
+                    <span class="alert-icon">⚠️</span>
+                    <span class="alert-message">@GameState.Value.ErrorMessage</span>
+                    <button @onclick="@(() => Dispatcher.Dispatch(new ClearErrorAction()))" 
+                            class="alert-close">×</button>
+                </div>
+            }
+
+            <!-- Game Header -->
+            <div class="game-header">
+                <button class="btn btn-secondary btn-back" @onclick="GoBack">
+                    <span class="btn-icon">←</span>
+                    Back
+                </button>
+                <h2 class="game-title">Memory Match</h2>
+                <div class="game-id">
+                    @if (GameState.Value.CurrentGameId.HasValue)
+                    {
+                        <span class="game-id-label">Game #@GameState.Value.CurrentGameId</span>
+                    }
+                </div>
+            </div>
+
+            <!-- Game Info Bar -->
+            <div class="game-info-bar">
+                <div class="info-item info-score">
+                    <div class="info-icon-wrapper">
+                        <div class="info-icon">🏆</div>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Score</div>
+                        <div class="info-value">@GameState.Value.Score</div>
+                    </div>
+                </div>
+
+                <div class="info-item info-time @(GameState.Value.TimeRemaining < 10 ? "time-warning" : "")">
+                    <div class="info-icon-wrapper">
+                        <div class="info-icon">@(GameState.Value.TimeRemaining < 10 ? "🔥" : "⏱️")</div>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Time</div>
+                        <div class="info-value">@GameState.Value.TimeRemaining</div>
+                    </div>
+                    @if (GameState.Value.TimeRemaining < 10)
+                    {
+                        <div class="time-warning-pulse"></div>
+                    }
+                </div>
+
+                <div class="info-item info-matches">
+                    <div class="info-icon-wrapper">
+                        <div class="info-icon">🎯</div>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Matches</div>
+                        <div class="info-value">@GameState.Value.MatchedPairs / 9</div>
+                    </div>
+                    <div class="matches-progress">
+                        <div class="progress-fill" style="width: @((GameState.Value.MatchedPairs / 9.0) * 100)%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Game Board -->
+            <div class="game-board-wrapper">
+                <div class="game-board">
+                    @foreach (var cell in GameState.Value.Cells)
+                    {
+                        <div class="cell-wrapper" @key="cell.Id">
+                            <div class="cell @GetCellClasses(cell)" 
+                                 @onclick="@(() => OnCellClick(cell))">
+                                
+                                <div class="cell-inner">
+                                    <!-- Card Back -->
+                                    <div class="cell-back">
+                                        <div class="card-pattern">
+                                            <div class="pattern-line"></div>
+                                            <div class="pattern-line"></div>
+                                            <div class="pattern-line"></div>
+                                        </div>
+                                        <div class="card-logo">🎴</div>
+                                        <div class="card-shine"></div>
+                                    </div>
+
+                                    <!-- Card Front -->
+                                    <div class="cell-front">
+                                        @if (!string.IsNullOrEmpty(cell.ImagePath))
+                                        {
+                                            <img src="@cell.ImagePath" 
+                                                 alt="Memory card" 
+                                                 class="cell-image"
+                                                 loading="lazy" />
+                                        }
+                                        
+                                        @if (cell.IsMatched)
+                                        {
+                                            <div class="match-overlay">
+                                                <div class="match-checkmark">
+                                                    <div class="checkmark-circle"></div>
+                                                    <div class="checkmark-stem"></div>
+                                                    <div class="checkmark-kick"></div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                @if (cell.IsRevealed && !cell.IsMatched)
+                                {
+                                    <div class="cell-glow"></div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Progress Indicator -->
+            <div class="game-progress">
+                <div class="progress-text">@GameState.Value.MatchedPairs / 9 pairs matched</div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" style="width: @((GameState.Value.MatchedPairs / 9.0) * 100)%">
+                        <div class="progress-shine"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            @if (GameState.Value.IsLoading)
+            {
+                <div class="loading-overlay">
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                    </div>
+                    <p class="loading-text">Generating unique game...</p>
+                </div>
+            }
+
+            <!-- Game Complete Modal -->
+            @if (GameState.Value.IsGameComplete)
+            {
+                <div class="game-complete-overlay">
+                    <div class="complete-modal">
+                        <div class="complete-confetti">
+                            @for (int i = 0; i < 50; i++)
+                            {
+                                <div class="confetti" style="left: @(i * 2)%; animation-delay: @(i * 0.01)s;"></div>
+                            }
+                        </div>
+                        
+                        <div class="complete-icon">🎉</div>
+                        <h2 class="complete-title">Congratulations!</h2>
+                        <p class="complete-subtitle">You matched all pairs!</p>
+                        
+                        <div class="complete-stats">
+                            <div class="stat-card">
+                                <div class="stat-icon">🏆</div>
+                                <div class="stat-content">
+                                    <div class="stat-label">Final Score</div>
+                                    <div class="stat-value highlight">@GameState.Value.Score</div>
+                                </div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-icon">⚡</div>
+                                <div class="stat-content">
+                                    <div class="stat-label">Time Bonus</div>
+                                    <div class="stat-value">+@(GameState.Value.TimeRemaining * 10)</div>
+                                </div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-icon">🎯</div>
+                                <div class="stat-content">
+                                    <div class="stat-label">Accuracy</div>
+                                    <div class="stat-value">100%</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="complete-time">
+                            Completed in <strong>@(60 - GameState.Value.TimeRemaining) seconds</strong>
+                        </div>
+
+                        <div class="complete-actions">
+                            <button @onclick="PlayAgain" class="btn btn-primary btn-large">
+                                <span class="btn-icon">🔄</span>
+                                Play Again
+                            </button>
+                            <a href="/lobby" class="btn btn-success btn-large">
+                                <span class="btn-icon">💰</span>
+                                Play for TON
+                            </a>
+                        </div>
+
+                        <div class="complete-footer">
+                            <button @onclick="GoBack" class="link-secondary">
+                                ← Back to Menu
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Time's Up Modal -->
+            @if (!GameState.Value.IsGameActive && GameState.Value.TimeRemaining == 0 && !GameState.Value.IsGameComplete)
+            {
+                <div class="game-complete-overlay">
+                    <div class="complete-modal timeout-modal">
+                        <div class="complete-icon timeout">⏰</div>
+                        <h2 class="complete-title">Time's Up!</h2>
+                        <p class="complete-subtitle">Don't give up - practice makes perfect!</p>
+                        
+                        <div class="complete-stats">
+                            <div class="stat-card">
+                                <div class="stat-icon">🎯</div>
+                                <div class="stat-content">
+                                    <div class="stat-label">Pairs Found</div>
+                                    <div class="stat-value">@GameState.Value.MatchedPairs / 9</div>
+                                </div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-icon">🏆</div>
+                                <div class="stat-content">
+                                    <div class="stat-label">Score</div>
+                                    <div class="stat-value">@GameState.Value.Score</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="timeout-message">
+                            <p>💡 <strong>Tip:</strong> Focus on creating mental patterns to remember card positions!</p>
+                        </div>
+
+                        <div class="complete-actions">
+                            <button @onclick="PlayAgain" class="btn btn-primary btn-large">
+                                <span class="btn-icon">🔄</span>
+                                Try Again
+                            </button>
+                        </div>
+
+                        <div class="complete-footer">
+                            <button @onclick="GoBack" class="link-secondary">
+                                ← Back to Menu
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+    }
+
+    private void StartGame()
+    {
+        Dispatcher.Dispatch(new InitFreeGameAction());
+    }
+
+    private void OnCellClick(Cell cell)
+    {
+        // Don't allow clicks if:
+        // - Game is not active
+        // - Cell is not clickable
+        // - Already processing a match
+        if (!GameState.Value.IsGameActive || 
+            !cell.IsClickable ||
+            GameState.Value.IsProcessingMatch)
+        {
+            return;
+        }
+
+        Dispatcher.Dispatch(new CellClickedAction(cell.Id));
+    }
+
+    private string GetCellClasses(Cell cell)
+    {
+        var classes = new List<string>();
+
+        if (cell.IsMatched)
+            classes.Add("matched");
+
+        if (cell.IsRevealed)
+            classes.Add("revealed");
+
+        if (cell.IsAnimating)
+            classes.Add("animating");
+
+        if (!cell.IsClickable)
+            classes.Add("disabled");
+
+        if (GameState.Value.ShouldShowImages)
+            classes.Add("preview");
+
+        return string.Join(" ", classes);
+    }
+
+    private void PlayAgain()
+    {
+        Dispatcher.Dispatch(new ResetGameAction());
+        Dispatcher.Dispatch(new InitFreeGameAction());
+    }
+
+    private void GoBack()
+    {
+        Dispatcher.Dispatch(new ResetGameAction());
+        Navigation.NavigateTo("/");
+    }
+}

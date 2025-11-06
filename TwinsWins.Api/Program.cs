@@ -26,7 +26,8 @@ builder.Services.AddSwaggerGen(options =>
 // Add SignalR for real-time updates
 builder.Services.AddSignalR();
 
-// Add CORS
+// Add CORS - MUST be configured before AddControllers
+var clientUrl = builder.Configuration["ClientUrl"] ?? "https://localhost:7236";
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -34,8 +35,8 @@ builder.Services.AddCors(options =>
         policy
             .WithOrigins(
                 "https://localhost:7236",  // Blazor WASM HTTPS
-                "http://localhost:5151",   // Blazor WASM HTTP
-                builder.Configuration["ClientUrl"] ?? "https://localhost:7236"
+                "http://localhost:5151",   // Blazor WASM HTTP  
+                clientUrl
             )
             .AllowAnyHeader()
             .AllowAnyMethod()
@@ -90,7 +91,7 @@ if (app.Environment.IsDevelopment())
 // Use HTTPS redirection
 app.UseHttpsRedirection();
 
-// Use CORS (must be before routing)
+// Use CORS (MUST be before UseRouting and after UseHttpsRedirection)
 app.UseCors();
 
 // Use routing
@@ -152,7 +153,6 @@ if (app.Environment.IsDevelopment())
 
 app.Logger.LogInformation("TwinsWins API starting...");
 app.Logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
-app.Logger.LogInformation("CORS allowed origins: {Origins}",
-    builder.Configuration["ClientUrl"] ?? "https://localhost:7236");
+app.Logger.LogInformation("CORS allowed origins: https://localhost:7236, http://localhost:5151, {ClientUrl}", clientUrl);
 
 app.Run();

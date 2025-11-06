@@ -47,3 +47,16 @@ public record SubmitScoreRequest
     public int Score { get; init; }
     public int TimeElapsed { get; init; }
 }
+
+/// <summary>
+/// Response for lobby statistics
+/// </summary>
+public record LobbyStatsResponse
+{
+    public int TotalGames { get; init; }
+    public decimal TotalStaked { get; init; }
+    public decimal AverageStake { get; init; }
+    public decimal MinStake { get; init; }
+    public decimal MaxStake { get; init; }
+    public int GamesLast24Hours { get; init; }
+}

@@ -12,7 +12,6 @@ namespace TwinsWins.Client.Store.Game;
 public class GameEffects
 {
     private readonly HttpClient _httpClient;
-    private System.Timers.Timer? _countdownTimer;
     private System.Timers.Timer? _gameTimer;
 
     public GameEffects(HttpClient httpClient)
@@ -285,7 +284,6 @@ public class GameEffects
 
     public void Dispose()
     {
-        _countdownTimer?.Dispose();
         _gameTimer?.Dispose();
     }
 }

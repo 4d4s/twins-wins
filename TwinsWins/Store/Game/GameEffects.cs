@@ -148,30 +148,17 @@ public class GameEffects
     // ============ Countdown Timer ============
 
     [EffectMethod]
-    public Task HandleStartCountdown(StartCountdownAction action, IDispatcher dispatcher)
+    public async Task HandleStartCountdown(StartCountdownAction action, IDispatcher dispatcher)
     {
-        _countdownTimer?.Dispose();
-        _countdownTimer = new System.Timers.Timer(1000); // 1 second
-
-        var countdown = 3;
-        _countdownTimer.Elapsed += (sender, e) =>
+        // Use Task.Delay instead of Timer
+        for (int countdown = 3; countdown > 0; countdown--)
         {
-            if (countdown > 1)
-            {
-                countdown--;
-                dispatcher.Dispatch(new CountdownTickAction(countdown));
-            }
-            else
-            {
-                _countdownTimer?.Stop();
-                _countdownTimer?.Dispose();
-                dispatcher.Dispatch(new CountdownCompleteAction());
-                dispatcher.Dispatch(new StartGameAction());
-            }
-        };
+            dispatcher.Dispatch(new CountdownTickAction(countdown));
+            await Task.Delay(1000);
+        }
 
-        _countdownTimer.Start();
-        return Task.CompletedTask;
+        dispatcher.Dispatch(new CountdownCompleteAction());
+        dispatcher.Dispatch(new StartGameAction());
     }
 
     // ============ Game Timer ============

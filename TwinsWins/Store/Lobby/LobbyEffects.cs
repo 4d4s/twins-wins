@@ -15,37 +15,54 @@ public class LobbyEffects : IDisposable
         _httpClient = httpClient;
     }
 
-    private async Task StartSignalRConnection(IDispatcher dispatcher)
+    private async Task EnsureConnectedAsync(IDispatcher dispatcher)
     {
+        if (_hubConnection?.State == HubConnectionState.Connected)
+            return;
+
+        if (_hubConnection?.State == HubConnectionState.Connecting)
+        {
+            // Wait for connection to complete
+            while (_hubConnection.State == HubConnectionState.Connecting)
+                await Task.Delay(100);
+            return;
+        }
+
         try
         {
-            // Get the API base URL from HttpClient
-            var apiBaseUrl = _httpClient.BaseAddress?.ToString().TrimEnd('/') ?? "https://localhost:7103";
+            var apiBaseUrl = _httpClient.BaseAddress?.ToString().TrimEnd('/')
+                ?? "https://localhost:7103";
             var hubUrl = $"{apiBaseUrl}/gamehub";
 
-            _hubConnection = new HubConnectionBuilder()
-                .WithUrl(hubUrl)
-                .WithAutomaticReconnect()
-                .Build();
-
-            // Listen for new games added to lobby
-            _hubConnection.On<GameLobby>("ReceiveNewGame", (game) =>
+            if (_hubConnection == null)
             {
-                dispatcher.Dispatch(new GameAddedToLobbyAction(game));
-            });
+                _hubConnection = new HubConnectionBuilder()
+                    .WithUrl(hubUrl)
+                    .WithAutomaticReconnect(new[]
+                    {
+                    TimeSpan.Zero,
+                    TimeSpan.FromSeconds(2),
+                    TimeSpan.FromSeconds(10)
+                    })
+                    .Build();
 
-            // Listen for games removed from lobby
-            _hubConnection.On<GameLobby>("ReceiveDeleteGame", (game) =>
-            {
-                dispatcher.Dispatch(new GameRemovedFromLobbyAction(game.Id));
-            });
+                _hubConnection.On<GameLobby>("ReceiveNewGame", (game) =>
+                {
+                    dispatcher.Dispatch(new GameAddedToLobbyAction(game));
+                });
 
-            // Start connection
+                _hubConnection.On<GameLobby>("ReceiveDeleteGame", (game) =>
+                {
+                    dispatcher.Dispatch(new GameRemovedFromLobbyAction(game.Id));
+                });
+            }
+
             await _hubConnection.StartAsync();
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new LobbyGamesLoadFailedAction($"SignalR connection failed: {ex.Message}"));
+            // Log but don't fail - app can work without real-time updates
+            Console.WriteLine($"SignalR connection failed: {ex.Message}");
         }
     }
 
@@ -68,7 +85,7 @@ public class LobbyEffects : IDisposable
             }
 
             // Start SignalR connection after initial load
-            await StartSignalRConnection(dispatcher);
+            await EnsureConnectedAsync(dispatcher);
         }
         catch (Exception ex)
         {

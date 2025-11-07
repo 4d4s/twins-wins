@@ -1,100 +1,196 @@
 ﻿using Fluxor;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.SignalR.Client;
+using TwinsWins.Shared.DTOs;
 using TwinsWins.Shared.Models;
 
 namespace TwinsWins.Client.Store.Lobby;
 
-public class LobbyEffects : IDisposable
+/// <summary>
+/// Effects for lobby operations
+/// All Effect methods MUST have exactly this signature when using [EffectMethod]:
+/// public async Task HandleAction(ActionType action, IDispatcher dispatcher)
+/// </summary>
+public class LobbyEffects
 {
     private readonly HttpClient _httpClient;
-    private HubConnection? _hubConnection;
 
     public LobbyEffects(HttpClient httpClient)
     {
         _httpClient = httpClient;
     }
 
-    private async Task EnsureConnectedAsync(IDispatcher dispatcher)
-    {
-        if (_hubConnection?.State == HubConnectionState.Connected)
-            return;
-
-        if (_hubConnection?.State == HubConnectionState.Connecting)
-        {
-            // Wait for connection to complete
-            while (_hubConnection.State == HubConnectionState.Connecting)
-                await Task.Delay(100);
-            return;
-        }
-
-        try
-        {
-            var apiBaseUrl = _httpClient.BaseAddress?.ToString().TrimEnd('/')
-                ?? "https://localhost:7103";
-            var hubUrl = $"{apiBaseUrl}/gamehub";
-
-            if (_hubConnection == null)
-            {
-                _hubConnection = new HubConnectionBuilder()
-                    .WithUrl(hubUrl)
-                    .WithAutomaticReconnect(new[]
-                    {
-                    TimeSpan.Zero,
-                    TimeSpan.FromSeconds(2),
-                    TimeSpan.FromSeconds(10)
-                    })
-                    .Build();
-
-                _hubConnection.On<GameLobby>("ReceiveNewGame", (game) =>
-                {
-                    dispatcher.Dispatch(new GameAddedToLobbyAction(game));
-                });
-
-                _hubConnection.On<GameLobby>("ReceiveDeleteGame", (game) =>
-                {
-                    dispatcher.Dispatch(new GameRemovedFromLobbyAction(game.Id));
-                });
-            }
-
-            await _hubConnection.StartAsync();
-        }
-        catch (Exception ex)
-        {
-            // Log but don't fail - app can work without real-time updates
-            Console.WriteLine($"SignalR connection failed: {ex.Message}");
-        }
-    }
-
+    /// <summary>
+    /// Effect to load available games from lobby
+    /// </summary>
     [EffectMethod]
     public async Task HandleLoadLobbyGames(LoadLobbyGamesAction action, IDispatcher dispatcher)
     {
-        dispatcher.Dispatch(new SetLobbyLoadingAction(true));
-
         try
         {
             var games = await _httpClient.GetFromJsonAsync<List<GameLobby>>("/api/lobby/games");
 
             if (games != null)
             {
-                dispatcher.Dispatch(new LobbyGamesLoadedAction(games));
+                dispatcher.Dispatch(new LoadLobbyGamesSuccessAction(games));
             }
             else
             {
-                dispatcher.Dispatch(new LobbyGamesLoadedAction(new List<GameLobby>()));
+                dispatcher.Dispatch(new LoadLobbyGamesFailureAction("No games found"));
             }
-
-            // Start SignalR connection after initial load
-            await EnsureConnectedAsync(dispatcher);
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new LobbyGamesLoadFailedAction(ex.Message));
+            dispatcher.Dispatch(new LoadLobbyGamesFailureAction(ex.Message));
         }
     }
 
-    public void Dispose()
+    /// <summary>
+    /// Effect to load available games (alternative)
+    /// </summary>
+    [EffectMethod]
+    public async Task HandleLoadGames(LoadGamesAction action, IDispatcher dispatcher)
     {
-        _hubConnection?.DisposeAsync();
+        try
+        {
+            var games = await _httpClient.GetFromJsonAsync<List<GameLobby>>("/api/lobby/games");
+
+            if (games != null)
+            {
+                dispatcher.Dispatch(new LoadGamesSuccessAction(games));
+            }
+            else
+            {
+                dispatcher.Dispatch(new LoadGamesFailureAction("No games found"));
+            }
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new LoadGamesFailureAction(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Effect to load lobby statistics
+    /// </summary>
+    [EffectMethod]
+    public async Task HandleLoadStats(LoadStatsAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            var stats = await _httpClient.GetFromJsonAsync<LobbyStatsResponse>("/api/lobby/stats");
+
+            if (stats != null)
+            {
+                dispatcher.Dispatch(new LoadStatsSuccessAction(stats));
+            }
+            else
+            {
+                dispatcher.Dispatch(new LoadStatsFailureAction("Failed to load stats"));
+            }
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new LoadStatsFailureAction(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Effect to create a new paid game
+    /// </summary>
+    [EffectMethod]
+    public async Task HandleCreateGame(CreateGameAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            var request = new CreateGameRequest
+            {
+                WalletAddress = action.WalletAddress,
+                Stake = action.Stake
+            };
+
+            var response = await _httpClient.PostAsJsonAsync("/api/game/create", request);
+            var result = await response.Content.ReadFromJsonAsync<CreateGameResponse>();
+
+            if (response.IsSuccessStatusCode && result != null)
+            {
+                var cells = result.Cells.Select(c => new Cell
+                {
+                    Id = c.Id,
+                    ImagePath = c.ImagePath
+                }).ToList();
+
+                dispatcher.Dispatch(new CreateGameSuccessAction(
+                    GameId: result.GameId,
+                    Cells: cells,
+                    ImageIdMap: result.ImageIdMap
+                ));
+            }
+            else
+            {
+                dispatcher.Dispatch(new CreateGameFailureAction("Failed to create game"));
+            }
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new CreateGameFailureAction(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Effect to join an existing game
+    /// </summary>
+    [EffectMethod]
+    public async Task HandleJoinGame(JoinGameAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            var request = new JoinGameRequest
+            {
+                GameId = action.GameId,
+                WalletAddress = action.WalletAddress
+            };
+
+            var response = await _httpClient.PostAsJsonAsync("/api/game/join", request);
+            var result = await response.Content.ReadFromJsonAsync<CreateGameResponse>();
+
+            if (response.IsSuccessStatusCode && result != null)
+            {
+                var cells = result.Cells.Select(c => new Cell
+                {
+                    Id = c.Id,
+                    ImagePath = c.ImagePath
+                }).ToList();
+
+                dispatcher.Dispatch(new JoinGameSuccessAction(
+                    GameId: result.GameId,
+                    Cells: cells,
+                    ImageIdMap: result.ImageIdMap
+                ));
+            }
+            else
+            {
+                dispatcher.Dispatch(new JoinGameFailureAction("Failed to join game"));
+            }
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new JoinGameFailureAction(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Effect to start auto-refresh of lobby data
+    /// </summary>
+    [EffectMethod]
+    public async Task HandleStartAutoRefresh(StartAutoRefreshAction action, IDispatcher dispatcher)
+    {
+        while (true)
+        {
+            await Task.Delay(5000); // Refresh every 5 seconds
+
+            // Dispatch action to reload games and stats
+            dispatcher.Dispatch(new LoadGamesAction());
+            dispatcher.Dispatch(new LoadStatsAction());
+        }
     }
 }

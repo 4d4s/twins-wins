@@ -1,123 +1,79 @@
-﻿using Fluxor;
+﻿using TwinsWins.Shared.DTOs;
 using TwinsWins.Shared.Models;
 
 namespace TwinsWins.Client.Store.Lobby;
 
-// ============ STATE ============
-
-[FeatureState]
+/// <summary>
+/// State for the lobby feature
+/// Contains all data needed to render the lobby UI
+/// </summary>
 public record LobbyState
 {
+    /// <summary>
+    /// List of available games in the lobby
+    /// </summary>
     public List<GameLobby> AvailableGames { get; init; } = new();
+
+    /// <summary>
+    /// Lobby statistics
+    /// </summary>
+    public LobbyStatsResponse? Stats { get; init; }
+
+    /// <summary>
+    /// Whether the lobby is currently loading
+    /// </summary>
     public bool IsLoading { get; init; }
+
+    /// <summary>
+    /// Error message if something went wrong
+    /// </summary>
     public string? ErrorMessage { get; init; }
+
+    /// <summary>
+    /// Current page number (for pagination)
+    /// </summary>
     public int CurrentPage { get; init; } = 1;
-    public int PageSize { get; init; } = 10;
 
-    public int TotalPages => (int)Math.Ceiling((double)AvailableGames.Count / PageSize);
-    public List<GameLobby> CurrentPageGames =>
-        AvailableGames
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize)
-            .ToList();
+    /// <summary>
+    /// Items per page
+    /// </summary>
+    public int PageSize { get; init; } = 12;
 
-    public LobbyState() { }
-}
+    /// <summary>
+    /// Total number of pages
+    /// </summary>
+    public int TotalPages => AvailableGames.Count > 0 ? (int)Math.Ceiling(AvailableGames.Count / (double)PageSize) : 1;
 
-// ============ ACTIONS ============
+    /// <summary>
+    /// Games for current page
+    /// </summary>
+    public List<GameLobby> CurrentPageGames => AvailableGames
+        .Skip((CurrentPage - 1) * PageSize)
+        .Take(PageSize)
+        .ToList();
 
-// Fetch available games
-public record LoadLobbyGamesAction();
-public record LobbyGamesLoadedAction(List<GameLobby> Games);
-public record LobbyGamesLoadFailedAction(string Error);
+    /// <summary>
+    /// Minimum stake filter
+    /// </summary>
+    public decimal? MinStakeFilter { get; init; }
 
-// Real-time updates from SignalR
-public record GameAddedToLobbyAction(GameLobby Game);
-public record GameRemovedFromLobbyAction(long GameId);
+    /// <summary>
+    /// Maximum stake filter
+    /// </summary>
+    public decimal? MaxStakeFilter { get; init; }
 
-// Pagination
-public record GoToNextPageAction();
-public record GoToPreviousPageAction();
-public record SetPageAction(int Page);
+    /// <summary>
+    /// Sort field (e.g., "Stake", "CreatedAt")
+    /// </summary>
+    public string SortBy { get; init; } = "Stake";
 
-// Loading & Errors
-public record SetLobbyLoadingAction(bool IsLoading);
-public record ClearLobbyErrorAction();
+    /// <summary>
+    /// Sort order (true = ascending, false = descending)
+    /// </summary>
+    public bool SortAscending { get; init; }
 
-// ============ REDUCERS ============
-
-public static class LobbyReducers
-{
-    [ReducerMethod]
-    public static LobbyState ReduceLobbyGamesLoaded(LobbyState state, LobbyGamesLoadedAction action) =>
-        state with
-        {
-            AvailableGames = action.Games,
-            IsLoading = false,
-            ErrorMessage = null
-        };
-
-    [ReducerMethod]
-    public static LobbyState ReduceLobbyGamesLoadFailed(LobbyState state, LobbyGamesLoadFailedAction action) =>
-        state with
-        {
-            IsLoading = false,
-            ErrorMessage = action.Error
-        };
-
-    [ReducerMethod]
-    public static LobbyState ReduceGameAddedToLobby(LobbyState state, GameAddedToLobbyAction action)
-    {
-        var games = state.AvailableGames.ToList();
-        games.Insert(0, action.Game); // Add to beginning
-        return state with { AvailableGames = games };
-    }
-
-    [ReducerMethod]
-    public static LobbyState ReduceGameRemovedFromLobby(LobbyState state, GameRemovedFromLobbyAction action)
-    {
-        var games = state.AvailableGames.Where(g => g.Id != action.GameId).ToList();
-        return state with { AvailableGames = games };
-    }
-
-    [ReducerMethod]
-    public static LobbyState ReduceGoToNextPage(LobbyState state, GoToNextPageAction action)
-    {
-        if (state.CurrentPage < state.TotalPages)
-        {
-            return state with { CurrentPage = state.CurrentPage + 1 };
-        }
-        return state;
-    }
-
-    [ReducerMethod]
-    public static LobbyState ReduceGoToPreviousPage(LobbyState state, GoToPreviousPageAction action)
-    {
-        if (state.CurrentPage > 1)
-        {
-            return state with { CurrentPage = state.CurrentPage - 1 };
-        }
-        return state;
-    }
-
-    [ReducerMethod]
-    public static LobbyState ReduceSetPage(LobbyState state, SetPageAction action) =>
-        state with
-        {
-            CurrentPage = Math.Max(1, Math.Min(action.Page, state.TotalPages))
-        };
-
-    [ReducerMethod]
-    public static LobbyState ReduceSetLobbyLoading(LobbyState state, SetLobbyLoadingAction action) =>
-        state with
-        {
-            IsLoading = action.IsLoading
-        };
-
-    [ReducerMethod]
-    public static LobbyState ReduceClearLobbyError(LobbyState state, ClearLobbyErrorAction action) =>
-        state with
-        {
-            ErrorMessage = null
-        };
+    /// <summary>
+    /// Whether auto-refresh is currently running
+    /// </summary>
+    public bool IsAutoRefreshing { get; init; }
 }

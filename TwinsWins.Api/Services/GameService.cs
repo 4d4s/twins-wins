@@ -34,7 +34,7 @@ public class GameService : IGameService
         _logger = logger;
     }
 
-    public async Task<CreateGameResponse> CreateFreeGame()
+    public Task<CreateGameResponse> CreateFreeGame()
     {
         _logger.LogInformation("Creating free practice game");
 
@@ -44,12 +44,14 @@ public class GameService : IGameService
         // Create cells and image map
         var (cells, imageIdMap) = CreateGameCells(imagePairs);
 
-        return new CreateGameResponse
+        var response = new CreateGameResponse
         {
             GameId = 0, // Free game has no ID
             Cells = cells,
             ImageIdMap = imageIdMap
         };
+
+        return Task.FromResult(response);
     }
 
     public async Task<CreateGameResponse> CreatePaidGame(string walletAddress, decimal stake)
@@ -262,7 +264,7 @@ public class GameService : IGameService
             response.PrizeAmount = totalStake - developerFee;
 
             // TODO: Process TON blockchain transaction
-            // response.TransactionHash = await _tonWalletService.SendPrize(response.Winner, response.PrizeAmount);
+            // response.TransactionHash = await _tonWalletService.SendPrizeAsync(response.Winner, response.PrizeAmount);
 
             _logger.LogInformation(
                 "Game {GameId} completed. Winner: {Winner}, Prize: {Prize} TON",
@@ -446,7 +448,7 @@ public class GameService : IGameService
         return result;
     }
 
-    public async Task<LobbyStatsResponse> GetLobbyStats()
+    public async Task<LobbyStatsResponse    > GetLobbyStats()
     {
         var stats = await _lobbyRepository.GetStatsAsync();
 

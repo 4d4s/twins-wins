@@ -4,204 +4,323 @@ using TwinsWins.Shared.Models;
 namespace TwinsWins.Client.Store.Game;
 
 /// <summary>
-/// Reducers define how state changes in response to actions
-/// Pure functions: (State, Action) => NewState
+/// Reducers for game state
+/// Pure functions that update state based on actions
 /// </summary>
 public static class GameReducers
 {
-    // ============ Initialization ============
+    // ====================================================================
+    // INIT FREE GAME REDUCERS
+    // ====================================================================
 
     [ReducerMethod]
-    public static GameState ReduceGameInitialized(GameState state, GameInitializedAction action) =>
-        state with
+    public static GameState ReduceInitFreeGame(GameState state, InitFreeGameAction action)
+    {
+        return state with
+        {
+            IsLoading = true,
+            ErrorMessage = null
+        };
+    }
+
+    [ReducerMethod]
+    public static GameState ReduceInitFreeGameSuccess(GameState state, InitFreeGameSuccessAction action)
+    {
+        return state with
         {
             CurrentGameId = action.GameId,
             Cells = action.Cells,
             ImageIdMap = action.ImageIdMap,
-            Score = 0,
-            TimeRemaining = 60,
             IsLoading = false,
+            IsCountdownActive = true,
+            CountdownValue = 3,
+            ShouldShowImages = true,
+            TimeRemaining = 60,
+            Score = 0,
+            MatchedCellIds = new List<int>(),
+            SelectedCells = new List<Cell>(),
+            IsGameComplete = false,
+            IsGameActive = false,
             ErrorMessage = null
         };
+    }
 
     [ReducerMethod]
-    public static GameState ReduceGameInitializationFailed(GameState state, GameInitializationFailedAction action) =>
-        state with
+    public static GameState ReduceInitFreeGameFailure(GameState state, InitFreeGameFailureAction action)
+    {
+        return state with
         {
             IsLoading = false,
-            ErrorMessage = action.Error
+            ErrorMessage = action.ErrorMessage
         };
+    }
 
-    // ============ Countdown ============
+    // ====================================================================
+    // COUNTDOWN REDUCERS
+    // ====================================================================
 
     [ReducerMethod]
-    public static GameState ReduceStartCountdown(GameState state, StartCountdownAction action) =>
-        state with
+    public static GameState ReduceStartCountdown(GameState state, StartCountdownAction action)
+    {
+        return state with
         {
             IsCountdownActive = true,
             CountdownValue = 3,
-            IsGameActive = false
+            ShouldShowImages = true
         };
+    }
 
     [ReducerMethod]
-    public static GameState ReduceCountdownTick(GameState state, CountdownTickAction action) =>
-        state with
+    public static GameState ReduceUpdateCountdown(GameState state, UpdateCountdownAction action)
+    {
+        return state with
         {
-            CountdownValue = action.CountdownValue
+            CountdownValue = action.Value
         };
+    }
 
     [ReducerMethod]
-    public static GameState ReduceCountdownComplete(GameState state, CountdownCompleteAction action) =>
-        state with
+    public static GameState ReduceCountdownComplete(GameState state, CountdownCompleteAction action)
+    {
+        return state with
         {
             IsCountdownActive = false,
-            CountdownValue = 0
-        };
-
-    // ============ Game Flow ============
-
-    [ReducerMethod]
-    public static GameState ReduceStartGame(GameState state, StartGameAction action) =>
-        state with
-        {
             IsGameActive = true,
-            TimeRemaining = 60,
-            GameStartTime = DateTime.UtcNow,
-            Score = 0
+            ShouldShowImages = false
         };
+    }
+
+    // ====================================================================
+    // CELL SELECTION REDUCERS
+    // ====================================================================
 
     [ReducerMethod]
-    public static GameState ReduceGameTick(GameState state, GameTickAction action) =>
-        state with
-        {
-            TimeRemaining = action.TimeRemaining
-        };
-
-    [ReducerMethod]
-    public static GameState ReduceEndGame(GameState state, EndGameAction action) =>
-        state with
-        {
-            IsGameActive = false,
-            TimeRemaining = 0
-        };
-
-    // ============ Cell Interaction ============
-
-    [ReducerMethod]
-    public static GameState ReduceRevealCell(GameState state, RevealCellAction action)
+    public static GameState ReduceCellClicked(GameState state, CellClickedAction action)
     {
-        var cells = state.Cells.Select(c =>
+        // Don't allow selection if game not active
+        if (!state.IsGameActive || state.IsGameComplete || state.IsProcessingMatch)
+        {
+            return state;
+        }
+
+        // Find the cell
+        var cell = state.Cells.FirstOrDefault(c => c.Id == action.CellId);
+        if (cell == null || !cell.IsClickable)
+        {
+            return state;
+        }
+
+        // Don't select if already matched
+        if (state.MatchedCellIds.Contains(action.CellId))
+        {
+            return state;
+        }
+
+        // Don't select if already selected
+        if (state.SelectedCells.Any(c => c.Id == action.CellId))
+        {
+            return state;
+        }
+
+        // Don't select if already have 2 selected
+        if (state.SelectedCells.Count >= 2)
+        {
+            return state;
+        }
+
+        // Update cells to show this one as revealed
+        var updatedCells = state.Cells.Select(c =>
             c.Id == action.CellId ? c with { IsRevealed = true } : c
         ).ToList();
 
-        var revealedCell = cells.First(c => c.Id == action.CellId);
+        // Add to selected cells
+        var newSelectedCells = new List<Cell>(state.SelectedCells) { cell with { IsRevealed = true } };
 
-        Cell? firstSelected = state.FirstSelectedCell;
-        Cell? secondSelected = state.SecondSelectedCell;
-
-        if (firstSelected == null)
-        {
-            firstSelected = revealedCell;
-        }
-        else if (secondSelected == null)
-        {
-            secondSelected = revealedCell;
-        }
+        // Check if we should process a match
+        var shouldProcessMatch = newSelectedCells.Count == 2;
 
         return state with
         {
-            Cells = cells,
-            FirstSelectedCell = firstSelected,
-            SecondSelectedCell = secondSelected
+            Cells = updatedCells,
+            SelectedCells = newSelectedCells,
+            IsProcessingMatch = shouldProcessMatch
         };
     }
+
+    [ReducerMethod]
+    public static GameState ReduceSelectCell(GameState state, SelectCellAction action)
+    {
+        // This is now handled by CellClickedAction
+        return state;
+    }
+
+    // ====================================================================
+    // MATCH CHECK REDUCERS
+    // ====================================================================
 
     [ReducerMethod]
     public static GameState ReduceMatchFound(GameState state, MatchFoundAction action)
     {
-        var cells = state.Cells.Select(c =>
-        {
-            if (c.Id == action.Cell1Id || c.Id == action.Cell2Id)
-            {
-                return c with { IsMatched = true, IsRevealed = false };
-            }
-            return c;
-        }).ToList();
+        // Add selected cells to matched list
+        var newMatchedIds = state.MatchedCellIds
+            .Concat(state.SelectedCells.Select(c => c.Id))
+            .ToList();
+
+        // Update cells to show as matched
+        var updatedCells = state.Cells.Select(c =>
+            newMatchedIds.Contains(c.Id) ? c with { IsMatched = true, IsRevealed = true } : c
+        ).ToList();
+
+        // Calculate new score (100 points per match + time bonus)
+        var matchBonus = 100;
+        var timeBonus = state.TimeRemaining > 50 ? 50 : state.TimeRemaining;
+        var newScore = state.Score + matchBonus + timeBonus;
+
+        // Check if game is completed (all 9 pairs matched)
+        var isCompleted = newMatchedIds.Count >= 18;
 
         return state with
         {
-            Cells = cells,
-            Score = state.Score + action.PointsAwarded,
-            FirstSelectedCell = null,
-            SecondSelectedCell = null
+            Cells = updatedCells,
+            MatchedCellIds = newMatchedIds,
+            SelectedCells = new List<Cell>(),
+            Score = newScore,
+            IsGameComplete = isCompleted,
+            IsGameActive = !isCompleted,
+            IsProcessingMatch = false
         };
     }
 
     [ReducerMethod]
-    public static GameState ReduceMatchFailed(GameState state, MatchFailedAction action)
+    public static GameState ReduceNoMatch(GameState state, NoMatchAction action)
     {
-        var cells = state.Cells.Select(c =>
-        {
-            if (c.Id == action.Cell1Id || c.Id == action.Cell2Id)
-            {
-                return c with { IsRevealed = false };
-            }
-            return c;
-        }).ToList();
+        // Hide the revealed cards after a delay
+        var selectedIds = state.SelectedCells.Select(c => c.Id).ToList();
+        var updatedCells = state.Cells.Select(c =>
+            selectedIds.Contains(c.Id) ? c with { IsRevealed = false } : c
+        ).ToList();
 
         return state with
         {
-            Cells = cells,
-            Score = Math.Max(0, state.Score + action.PointsDeducted), // Don't go below 0
-            FirstSelectedCell = null,
-            SecondSelectedCell = null
+            Cells = updatedCells,
+            SelectedCells = new List<Cell>(),
+            IsProcessingMatch = false
         };
     }
 
     [ReducerMethod]
-    public static GameState ReduceResetSelectedCells(GameState state, ResetSelectedCellsAction action) =>
-        state with
+    public static GameState ReduceFlipBack(GameState state, FlipBackAction action)
+    {
+        // Clear selected cells (used for animations)
+        return state with
         {
-            FirstSelectedCell = null,
-            SecondSelectedCell = null
+            SelectedCells = new List<Cell>(),
+            IsProcessingMatch = false
         };
+    }
 
-    // ============ Score Management ============
+    // ====================================================================
+    // TIMER REDUCERS
+    // ====================================================================
 
     [ReducerMethod]
-    public static GameState ReduceUpdateScore(GameState state, UpdateScoreAction action) =>
-        state with
+    public static GameState ReduceStartTimer(GameState state, StartTimerAction action)
+    {
+        return state with
         {
-            Score = action.NewScore
+            TimeRemaining = 60
         };
-
-    // ============ Loading & Errors ============
+    }
 
     [ReducerMethod]
-    public static GameState ReduceSetLoading(GameState state, SetLoadingAction action) =>
-        state with
+    public static GameState ReduceUpdateTimer(GameState state, UpdateTimerAction action)
+    {
+        var newTimeRemaining = state.TimeRemaining - 1;
+        var gameStillActive = newTimeRemaining > 0 && !state.IsGameComplete;
+
+        return state with
         {
-            IsLoading = action.IsLoading
+            TimeRemaining = Math.Max(0, newTimeRemaining),
+            IsGameActive = gameStillActive
         };
+    }
 
     [ReducerMethod]
-    public static GameState ReduceSetError(GameState state, SetErrorAction action) =>
-        state with
-        {
-            ErrorMessage = action.Error,
-            IsLoading = false
-        };
+    public static GameState ReduceStopTimer(GameState state, StopTimerAction action)
+    {
+        return state;
+    }
+
+    // ====================================================================
+    // ERROR HANDLING REDUCERS
+    // ====================================================================
 
     [ReducerMethod]
-    public static GameState ReduceClearError(GameState state, ClearErrorAction action) =>
-        state with
+    public static GameState ReduceClearError(GameState state, ClearErrorAction action)
+    {
+        return state with
         {
             ErrorMessage = null
         };
+    }
 
-    // ============ Reset ============
+    // ====================================================================
+    // GAME RESULT REDUCERS
+    // ====================================================================
 
     [ReducerMethod]
-    public static GameState ReduceResetGame(GameState state, ResetGameAction action) =>
-        new GameState();
+    public static GameState ReduceSubmitGameResult(GameState state, SubmitGameResultAction action)
+    {
+        return state with
+        {
+            IsLoading = true
+        };
+    }
+
+    [ReducerMethod]
+    public static GameState ReduceSubmitGameResultSuccess(GameState state, SubmitGameResultSuccessAction action)
+    {
+        return state with
+        {
+            IsLoading = false
+        };
+    }
+
+    [ReducerMethod]
+    public static GameState ReduceSubmitGameResultFailure(GameState state, SubmitGameResultFailureAction action)
+    {
+        return state with
+        {
+            IsLoading = false,
+            ErrorMessage = action.ErrorMessage
+        };
+    }
+
+    // ====================================================================
+    // RESET REDUCER
+    // ====================================================================
+
+    [ReducerMethod]
+    public static GameState ReduceResetGame(GameState state, ResetGameAction action)
+    {
+        // Reset to initial state
+        return new GameState
+        {
+            CurrentGameId = null,
+            Cells = new List<Cell>(),
+            SelectedCells = new List<Cell>(),
+            MatchedCellIds = new List<int>(),
+            ImageIdMap = new Dictionary<int, int>(),
+            TimeRemaining = 60,
+            Score = 0,
+            IsCountdownActive = false,
+            CountdownValue = 3,
+            IsGameActive = false,
+            IsGameComplete = false,
+            IsProcessingMatch = false,
+            ShouldShowImages = false,
+            IsLoading = false,
+            ErrorMessage = null
+        };
+    }
 }

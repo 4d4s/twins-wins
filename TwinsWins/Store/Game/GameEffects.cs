@@ -6,246 +6,162 @@ using TwinsWins.Shared.Models;
 namespace TwinsWins.Client.Store.Game;
 
 /// <summary>
-/// Effects handle side effects (API calls, timers, etc.)
-/// They dispatch new actions based on results
+/// Effects handle side effects like API calls, timers, and async operations
+/// All Effect methods MUST have exactly this signature when using [EffectMethod]:
+/// public async Task HandleAction(ActionType action, IDispatcher dispatcher)
 /// </summary>
 public class GameEffects
 {
     private readonly HttpClient _httpClient;
-    private System.Timers.Timer? _gameTimer;
+    private CancellationTokenSource? _timerCancellation;
+    private CancellationTokenSource? _countdownCancellation;
 
     public GameEffects(HttpClient httpClient)
     {
         _httpClient = httpClient;
     }
 
-    // ============ Game Initialization ============
-
+    /// <summary>
+    /// Effect to initialize a free practice game
+    /// </summary>
     [EffectMethod]
     public async Task HandleInitFreeGame(InitFreeGameAction action, IDispatcher dispatcher)
     {
-        dispatcher.Dispatch(new SetLoadingAction(true));
-
         try
         {
-            var response = await _httpClient.PostAsync("/api/game/init-free", null);
-            response.EnsureSuccessStatusCode();
+            // Call API to initialize free game
+            var response = await _httpClient.GetFromJsonAsync<CreateGameResponse>("/api/game/init-free");
 
-            var gameResponse = await response.Content.ReadFromJsonAsync<CreateGameResponse>();
-
-            if (gameResponse != null)
+            if (response != null)
             {
-                var cells = gameResponse.Cells.Select(c => new Cell
-                {
-                    Id = c.Id,
-                    ImagePath = c.ImagePath,
-                    IsMatched = false,
-                    IsRevealed = false
+                var cells = response.Cells.Select(c => new Cell 
+                { 
+                    Id = c.Id, 
+                    ImagePath = c.ImagePath 
                 }).ToList();
 
-                dispatcher.Dispatch(new GameInitializedAction(
-                    null,
-                    cells,
-                    gameResponse.ImageIdMap
+                dispatcher.Dispatch(new InitFreeGameSuccessAction(
+                    GameId: 0, // Free games have no ID
+                    Cells: cells,
+                    ImageIdMap: response.ImageIdMap
                 ));
 
-                dispatcher.Dispatch(new StartCountdownAction());
-            }
-        }
-        catch (Exception ex)
-        {
-            dispatcher.Dispatch(new GameInitializationFailedAction(ex.Message));
-        }
-    }
-
-    [EffectMethod]
-    public async Task HandleInitPaidGame(InitPaidGameAction action, IDispatcher dispatcher)
-    {
-        dispatcher.Dispatch(new SetLoadingAction(true));
-
-        try
-        {
-            var request = new CreateGameRequest
-            {
-                WalletAddress = action.WalletAddress,
-                Stake = action.Stake
-            };
-
-            var response = await _httpClient.PostAsJsonAsync("/api/game/init-paid", request);
-            response.EnsureSuccessStatusCode();
-
-            var gameResponse = await response.Content.ReadFromJsonAsync<CreateGameResponse>();
-
-            if (gameResponse != null)
-            {
-                var cells = gameResponse.Cells.Select(c => new Cell
-                {
-                    Id = c.Id,
-                    ImagePath = c.ImagePath,
-                    IsMatched = false,
-                    IsRevealed = false
-                }).ToList();
-
-                dispatcher.Dispatch(new GameInitializedAction(
-                    gameResponse.GameId,
-                    cells,
-                    gameResponse.ImageIdMap
-                ));
-
-                dispatcher.Dispatch(new StartCountdownAction());
-            }
-        }
-        catch (Exception ex)
-        {
-            dispatcher.Dispatch(new GameInitializationFailedAction(ex.Message));
-        }
-    }
-
-    [EffectMethod]
-    public async Task HandleJoinPaidGame(JoinPaidGameAction action, IDispatcher dispatcher)
-    {
-        dispatcher.Dispatch(new SetLoadingAction(true));
-
-        try
-        {
-            var request = new JoinGameRequest
-            {
-                GameId = action.GameId,
-                WalletAddress = action.WalletAddress
-            };
-
-            var response = await _httpClient.PostAsJsonAsync("/api/game/join", request);
-            response.EnsureSuccessStatusCode();
-
-            var gameResponse = await response.Content.ReadFromJsonAsync<CreateGameResponse>();
-
-            if (gameResponse != null)
-            {
-                var cells = gameResponse.Cells.Select(c => new Cell
-                {
-                    Id = c.Id,
-                    ImagePath = c.ImagePath,
-                    IsMatched = false,
-                    IsRevealed = false
-                }).ToList();
-
-                dispatcher.Dispatch(new GameInitializedAction(
-                    action.GameId,
-                    cells,
-                    gameResponse.ImageIdMap
-                ));
-
-                dispatcher.Dispatch(new StartCountdownAction());
-            }
-        }
-        catch (Exception ex)
-        {
-            dispatcher.Dispatch(new GameInitializationFailedAction(ex.Message));
-        }
-    }
-
-    // ============ Countdown Timer ============
-
-    [EffectMethod]
-    public async Task HandleStartCountdown(StartCountdownAction action, IDispatcher dispatcher)
-    {
-        // Use Task.Delay instead of Timer
-        for (int countdown = 3; countdown > 0; countdown--)
-        {
-            dispatcher.Dispatch(new CountdownTickAction(countdown));
-            await Task.Delay(1000);
-        }
-
-        dispatcher.Dispatch(new CountdownCompleteAction());
-        dispatcher.Dispatch(new StartGameAction());
-    }
-
-    // ============ Game Timer ============
-
-    [EffectMethod]
-    public Task HandleStartGame(StartGameAction action, IDispatcher dispatcher)
-    {
-        _gameTimer?.Dispose();
-        _gameTimer = new System.Timers.Timer(1000); // 1 second
-
-        var timeRemaining = 60;
-        _gameTimer.Elapsed += (sender, e) =>
-        {
-            if (timeRemaining > 0)
-            {
-                timeRemaining--;
-                dispatcher.Dispatch(new GameTickAction(timeRemaining));
+                // Start countdown
+                await StartCountdown(dispatcher);
             }
             else
             {
-                _gameTimer?.Stop();
-                _gameTimer?.Dispose();
-
-                // Get final score from state - will need to retrieve it
-                dispatcher.Dispatch(new EndGameAction(0)); // Score will be updated from state
+                dispatcher.Dispatch(new InitFreeGameFailureAction("Failed to initialize game"));
             }
-        };
-
-        _gameTimer.Start();
-        return Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new InitFreeGameFailureAction(ex.Message));
+        }
     }
 
-    // ============ Cell Click & Match Logic ============
+    /// <summary>
+    /// Effect to handle countdown before game starts
+    /// </summary>
+    private async Task StartCountdown(IDispatcher dispatcher)
+    {
+        _countdownCancellation?.Cancel();
+        _countdownCancellation = new CancellationTokenSource();
 
+        try
+        {
+            for (int i = 3; i > 0; i--)
+            {
+                dispatcher.Dispatch(new UpdateCountdownAction(i));
+                await Task.Delay(1000, _countdownCancellation.Token);
+            }
+
+            // Countdown complete - start game
+            dispatcher.Dispatch(new CountdownCompleteAction());
+            
+            // Start timer
+            _ = StartTimer(dispatcher);
+        }
+        catch (TaskCanceledException)
+        {
+            // Countdown was cancelled
+        }
+    }
+
+    /// <summary>
+    /// Effect to start the game timer
+    /// </summary>
+    private async Task StartTimer(IDispatcher dispatcher)
+    {
+        _timerCancellation?.Cancel();
+        _timerCancellation = new CancellationTokenSource();
+
+        try
+        {
+            while (!_timerCancellation.Token.IsCancellationRequested)
+            {
+                await Task.Delay(1000, _timerCancellation.Token);
+                dispatcher.Dispatch(new UpdateTimerAction());
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            // Timer was cancelled
+        }
+    }
+
+    /// <summary>
+    /// Effect to handle cell click and check for match
+    /// </summary>
     [EffectMethod]
     public async Task HandleCellClicked(CellClickedAction action, IDispatcher dispatcher)
     {
-        // Reveal the cell
-        dispatcher.Dispatch(new RevealCellAction(action.CellId));
-
-        // Wait a bit then check for match
-        await Task.Delay(100);
-        dispatcher.Dispatch(new CheckMatchAction());
+        // Wait a moment to show both cards
+        await Task.Delay(500);
+        
+        // The reducer will have updated to show we have 2 selected cells
+        // Now we need to check if they match - but we need current state
+        // This will be handled by checking in the reducer itself
     }
 
-    [EffectMethod(typeof(CheckMatchAction))]
-    public async Task HandleCheckMatch(IDispatcher dispatcher, IState<GameState> state)
+    /// <summary>
+    /// Effect to handle match checking after selection
+    /// </summary>
+    [EffectMethod]
+    public async Task HandleCheckMatch(CheckMatchAction action, IDispatcher dispatcher)
     {
-        var gameState = state.Value;
+        var state = action.State;
 
-        if (gameState.FirstSelectedCell != null && gameState.SecondSelectedCell != null)
+        if (state.SelectedCells.Count != 2)
         {
-            var cell1Id = gameState.FirstSelectedCell.Id;
-            var cell2Id = gameState.SecondSelectedCell.Id;
+            return;
+        }
 
-            // Check if they match using the image map
-            var isMatch = gameState.ImageIdMap.ContainsKey(cell1Id) &&
-                         gameState.ImageIdMap[cell1Id] == cell2Id;
+        // Add a small delay to show both cards before checking match
+        await Task.Delay(800);
 
-            // Wait a moment so user can see both cards
-            await Task.Delay(800);
+        var cell1 = state.SelectedCells[0];
+        var cell2 = state.SelectedCells[1];
 
-            if (isMatch)
-            {
-                // Calculate points based on time elapsed
-                var points = CalculatePoints(gameState.GameStartTime, gameState.TimeRemaining);
-                dispatcher.Dispatch(new MatchFoundAction(cell1Id, cell2Id, points));
-            }
-            else
-            {
-                dispatcher.Dispatch(new MatchFailedAction(cell1Id, cell2Id, -100));
-            }
-
-            // Check if game is complete
-            if (gameState.IsGameComplete)
-            {
-                dispatcher.Dispatch(new EndGameAction(gameState.Score));
-            }
+        // Check if cells have the same image ID mapping
+        if (state.ImageIdMap.TryGetValue(cell1.Id, out int matchId) && matchId == cell2.Id)
+        {
+            // Match found
+            dispatcher.Dispatch(new MatchFoundAction());
+        }
+        else
+        {
+            // No match - flip cards back
+            dispatcher.Dispatch(new NoMatchAction());
         }
     }
 
-    // ============ Score Submission ============
-
+    /// <summary>
+    /// Effect to submit game result
+    /// </summary>
     [EffectMethod]
-    public async Task HandleSubmitScore(SubmitScoreAction action, IDispatcher dispatcher)
+    public async Task HandleSubmitResult(SubmitGameResultAction action, IDispatcher dispatcher)
     {
-        dispatcher.Dispatch(new SetLoadingAction(true));
-
         try
         {
             var request = new SubmitScoreRequest
@@ -253,37 +169,36 @@ public class GameEffects
                 GameId = action.GameId,
                 WalletAddress = action.WalletAddress,
                 Score = action.Score,
-                TimeElapsed = 60 // Will be calculated from state
+                TimeElapsed = 60 - action.TimeElapsed // Convert remaining time to elapsed
             };
 
             var response = await _httpClient.PostAsJsonAsync("/api/game/submit-score", request);
-            response.EnsureSuccessStatusCode();
 
-            dispatcher.Dispatch(new ScoreSubmittedAction());
-            dispatcher.Dispatch(new SetLoadingAction(false));
+            if (response.IsSuccessStatusCode)
+            {
+                dispatcher.Dispatch(new SubmitGameResultSuccessAction());
+            }
+            else
+            {
+                dispatcher.Dispatch(new SubmitGameResultFailureAction("Failed to submit score"));
+            }
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new ScoreSubmissionFailedAction(ex.Message));
+            dispatcher.Dispatch(new SubmitGameResultFailureAction(ex.Message));
         }
     }
 
-    // ============ Helper Methods ============
-
-    private int CalculatePoints(DateTime? startTime, int timeRemaining)
+    /// <summary>
+    /// Effect to handle game reset
+    /// </summary>
+    [EffectMethod]
+    public Task HandleResetGame(ResetGameAction action, IDispatcher dispatcher)
     {
-        if (startTime == null) return 0;
+        // Cancel timers
+        _timerCancellation?.Cancel();
+        _countdownCancellation?.Cancel();
 
-        var elapsedTime = (DateTime.UtcNow - startTime.Value).TotalSeconds;
-        var timeRatio = elapsedTime / 60.0;
-        const int maxPoints = 1000;
-
-        var points = Math.Floor(maxPoints * (1 - timeRatio));
-        return Math.Max((int)points, 100); // Minimum 100 points per match
-    }
-
-    public void Dispose()
-    {
-        _gameTimer?.Dispose();
+        return Task.CompletedTask;
     }
 }

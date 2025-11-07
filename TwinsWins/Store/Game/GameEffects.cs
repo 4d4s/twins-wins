@@ -29,29 +29,39 @@ public class GameEffects
     {
         try
         {
-            // Call API to initialize free game
-            var response = await _httpClient.GetFromJsonAsync<CreateGameResponse>("/api/game/init-free");
-
-            if (response != null)
+            // Call API to initialize free game (POST request)
+            var httpResponse = await _httpClient.PostAsync("/api/game/init-free", null);
+            
+            if (httpResponse.IsSuccessStatusCode)
             {
-                var cells = response.Cells.Select(c => new Cell 
-                { 
-                    Id = c.Id, 
-                    ImagePath = c.ImagePath 
-                }).ToList();
+                var response = await httpResponse.Content.ReadFromJsonAsync<CreateGameResponse>();
+                
+                if (response != null)
+                {
+                    var cells = response.Cells.Select(c => new Cell 
+                    { 
+                        Id = c.Id, 
+                        ImagePath = c.ImagePath 
+                    }).ToList();
 
-                dispatcher.Dispatch(new InitFreeGameSuccessAction(
-                    GameId: 0, // Free games have no ID
-                    Cells: cells,
-                    ImageIdMap: response.ImageIdMap
-                ));
+                    dispatcher.Dispatch(new InitFreeGameSuccessAction(
+                        GameId: 0, // Free games have no ID
+                        Cells: cells,
+                        ImageIdMap: response.ImageIdMap
+                    ));
 
-                // Start countdown
-                await StartCountdown(dispatcher);
+                    // Start countdown
+                    await StartCountdown(dispatcher);
+                }
+                else
+                {
+                    dispatcher.Dispatch(new InitFreeGameFailureAction("Failed to initialize game"));
+                }
             }
             else
             {
-                dispatcher.Dispatch(new InitFreeGameFailureAction("Failed to initialize game"));
+                var error = await httpResponse.Content.ReadAsStringAsync();
+                dispatcher.Dispatch(new InitFreeGameFailureAction($"API Error: {error}"));
             }
         }
         catch (Exception ex)

@@ -2,6 +2,7 @@
 using System.Net.Http.Json;
 using TwinsWins.Shared.DTOs;
 using TwinsWins.Shared.Models;
+using TwinsWins.Client.Store.Game;
 
 namespace TwinsWins.Client.Store.Lobby;
 
@@ -95,6 +96,110 @@ public class LobbyEffects
     }
 
     /// <summary>
+    /// Effect to initialize a paid game (create and start playing)
+    /// </summary>
+    [EffectMethod]
+    public async Task HandleInitPaidGame(InitPaidGameAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            var request = new CreateGameRequest
+            {
+                WalletAddress = action.WalletAddress,
+                Stake = action.Stake
+            };
+
+            var httpResponse = await _httpClient.PostAsJsonAsync("/api/game/init-paid", request);
+            
+            if (httpResponse.IsSuccessStatusCode)
+            {
+                var response = await httpResponse.Content.ReadFromJsonAsync<CreateGameResponse>();
+
+                if (response != null)
+                {
+                    var cells = response.Cells.Select(c => new Cell 
+                    { 
+                        Id = c.Id, 
+                        ImagePath = c.ImagePath 
+                    }).ToList();
+
+                    // Dispatch to Game store to initialize the game
+                    dispatcher.Dispatch(new InitFreeGameSuccessAction(
+                        GameId: response.GameId,
+                        Cells: cells,
+                        ImageIdMap: response.ImageIdMap
+                    ));
+                }
+                else
+                {
+                    dispatcher.Dispatch(new CreateGameFailureAction("Failed to create paid game"));
+                }
+            }
+            else
+            {
+                var error = await httpResponse.Content.ReadAsStringAsync();
+                dispatcher.Dispatch(new CreateGameFailureAction($"API Error: {error}"));
+            }
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new CreateGameFailureAction(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Effect to join a paid game
+    /// </summary>
+    [EffectMethod]
+    public async Task HandleJoinPaidGame(JoinPaidGameAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            var request = new JoinGameRequest
+            {
+                GameId = action.GameId,
+                WalletAddress = action.WalletAddress
+            };
+
+            var httpResponse = await _httpClient.PostAsJsonAsync("/api/game/join", request);
+            
+            if (httpResponse.IsSuccessStatusCode)
+            {
+                var response = await httpResponse.Content.ReadFromJsonAsync<CreateGameResponse>();
+
+                if (response != null)
+                {
+                    var cells = response.Cells.Select(c => new Cell 
+                    { 
+                        Id = c.Id, 
+                        ImagePath = c.ImagePath 
+                    }).ToList();
+
+                    // Dispatch to Game store to initialize the game
+                    dispatcher.Dispatch(new InitFreeGameSuccessAction(
+                        GameId: response.GameId,
+                        Cells: cells,
+                        ImageIdMap: response.ImageIdMap
+                    ));
+                }
+                else
+                {
+                    dispatcher.Dispatch(new JoinGameFailureAction("Failed to join game"));
+                }
+            }
+            else
+            {
+                var error = await httpResponse.Content.ReadAsStringAsync();
+                dispatcher.Dispatch(new JoinGameFailureAction($"API Error: {error}"));
+            }
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new JoinGameFailureAction(ex.Message));
+        }
+    }
+
+    /// <summary>
     /// Effect to create a new paid game
     /// </summary>
     [EffectMethod]
@@ -113,10 +218,10 @@ public class LobbyEffects
 
             if (response.IsSuccessStatusCode && result != null)
             {
-                var cells = result.Cells.Select(c => new Cell
-                {
-                    Id = c.Id,
-                    ImagePath = c.ImagePath
+                var cells = result.Cells.Select(c => new Cell 
+                { 
+                    Id = c.Id, 
+                    ImagePath = c.ImagePath 
                 }).ToList();
 
                 dispatcher.Dispatch(new CreateGameSuccessAction(
@@ -155,10 +260,10 @@ public class LobbyEffects
 
             if (response.IsSuccessStatusCode && result != null)
             {
-                var cells = result.Cells.Select(c => new Cell
-                {
-                    Id = c.Id,
-                    ImagePath = c.ImagePath
+                var cells = result.Cells.Select(c => new Cell 
+                { 
+                    Id = c.Id, 
+                    ImagePath = c.ImagePath 
                 }).ToList();
 
                 dispatcher.Dispatch(new JoinGameSuccessAction(

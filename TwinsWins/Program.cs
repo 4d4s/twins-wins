@@ -1,9 +1,8 @@
 using Fluxor;
+using Fluxor.Blazor.Web.ReduxDevTools;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using TwinsWins.Client;
-using TwinsWins.Client.Store.Game;
-using TwinsWins.Client.Store.Lobby;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -18,15 +17,20 @@ builder.Services.AddScoped(sp => new HttpClient
     BaseAddress = new Uri(apiBaseUrl)
 });
 
-// Add Fluxor for state management
+// Add Fluxor for state management with proper configuration
 builder.Services.AddFluxor(options =>
 {
-    options.ScanAssemblies(typeof(Program).Assembly);
+    options
+        .ScanAssemblies(typeof(Program).Assembly)
+#if DEBUG
+        .UseReduxDevTools() // Enable Redux DevTools for debugging
+        // Uncomment the above line and add the correct using if you have the Fluxor.Blazor.Web.ReduxDevTools package installed.
+        .UseRouting() // Required for Blazor WASM
+#endif
+        ;
 });
 
-// Register Effects manually (Fluxor requires this)
-builder.Services.AddScoped<GameEffects>();
-builder.Services.AddScoped<LobbyEffects>();
-
 Console.WriteLine("TwinsWins Blazor WASM starting...");
+Console.WriteLine("Fluxor configured with assembly scanning");
+
 await builder.Build().RunAsync();

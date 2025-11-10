@@ -24,13 +24,9 @@ builder.Services.AddFluxor(options =>
         .ScanAssemblies(typeof(Program).Assembly)
 #if DEBUG
         .UseReduxDevTools() // Enable Redux DevTools for debugging
-        // Uncomment the above line and add the correct using if you have the Fluxor.Blazor.Web.ReduxDevTools package installed.
         .UseRouting() // Required for Blazor WASM
 #endif
         ;
 });
-
-Console.WriteLine("TwinsWins Blazor WASM starting...");
-Console.WriteLine("Fluxor configured with assembly scanning");
 
 await builder.Build().RunAsync();
